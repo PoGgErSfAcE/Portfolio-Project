@@ -1,21 +1,190 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# SQL Server Management Studio Solution File, Format Version 19.00
-VisualStudioVersion = 15.0.28307.421
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{4F2E2C19-372F-40D8-9FA7-9D2138C6997A}") = "Portfolio Project", "Portfolio Project\Portfolio Project.ssmssqlproj", "{E17B2E20-7F4A-4003-835E-14C347EF4AAD}"
-EndProject
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Default|Default = Default|Default
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{E17B2E20-7F4A-4003-835E-14C347EF4AAD}.Default|Default.ActiveCfg = Default
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {1F3320B4-19F5-4073-97AC-021466CB0E93}
-	EndGlobalSection
-EndGlobal
+
+-- Getting an understanding of the data 
+Select *
+from [Portfolio Project]..covid_vaccinations
+where continent is not null 
+order by 3,4
+
+-- Select data that we're going to be using 
+
+select location, date, total_cases, new_cases, total_deaths, population
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+order by 1,2
+
+-- Chagning the nvarchar data type to float type to use in operators 
+
+ALTER TABLE covid_deaths
+ALTER COLUMN total_deaths float;
+
+
+ALTER TABLE covid_deaths
+ALTER COLUMN total_cases float;
+
+-- Looking at Total cases vs. Total Deaths 
+-- Likelihood of dying if you contract covid in the US 
+
+select location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 as DeathPrecentage
+from [Portfolio Project]..covid_deaths
+where continent is not null and location like 'United States'
+order by 1,2 desc;
+
+--Creating Table View 
+Create View CovidContractionUs as
+select location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 as DeathPrecentage
+from [Portfolio Project]..covid_deaths
+where continent is not null and location like 'United States'
+--order by 1,2 desc;
+
+-- Looking at the Total Covid Cases vs. Population In US
+
+select location, date, total_cases, population, (total_cases/population)*100 as InfectionPrecentage
+from [Portfolio Project]..covid_deaths
+where continent is not null and location like 'United States'
+order by 1,2 desc;
+
+--Creating Table View
+Create View UsInfectionPrecentage as 
+select location, date, total_cases, population, (total_cases/population)*100 as InfectionPrecentage
+from [Portfolio Project]..covid_deaths
+where continent is not null and location like 'United States'
+--order by 1,2 desc;
+
+-- Contries with highest infection rate compared to population 
+
+select location, population, MAX(total_cases) as HighestInfectionCount, (MAX(total_cases)/population)*100 as PrecentPopulationInfected
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by location, population
+order by 3 desc;
+
+--Creating Table View
+Create View InfectionRateByContry as
+select location, population, MAX(total_cases) as HighestInfectionCount, (MAX(total_cases)/population)*100 as PrecentPopulationInfected
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by location, population
+--order by 3 desc;
+
+-- Contries with the highest death precentage by population
+
+select location, population, MAX(total_deaths) as Total_deaths, round((MAX(total_deaths)/population)*100,2) as Deaths_per_population
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by location, population
+order by 3 desc;
+
+--Creating Table View
+
+Create View ContriesTotalDeathByPopulation as
+select location, population, MAX(total_deaths) as Total_deaths, round((MAX(total_deaths)/population)*100,2) as Deaths_per_population
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by location, population
+--order by 3 desc;
+
+-- COVID Deaths Grouped by Continent 
+
+select continent, MAX(total_deaths) as Total_deaths
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by continent
+order by Total_deaths desc;
+
+--Creating Table View
+Create View ContinentDeaths as
+select continent, MAX(total_deaths) as Total_deaths
+from [Portfolio Project]..covid_deaths
+where continent is not null 
+group by continent
+--order by Total_deaths desc;
+
+-- GLOBAL DEATH NUMBERS
+
+
+SELECT 
+       SUM(new_cases) AS Total_Cases, 
+       SUM(CAST(new_deaths AS INT)) AS Total_Deaths, 
+        SUM(CAST(new_deaths AS INT)) / SUM(new_cases) * 100 AS DeathPercentage 
+FROM [Portfolio Project]..covid_deaths
+WHERE continent IS NOT NULL 
+ORDER BY 1, 2
+
+--Creating Table View
+Create View GlobalDeathNumbers as
+SELECT 
+       SUM(new_cases) AS Total_Cases, 
+       SUM(CAST(new_deaths AS INT)) AS Total_Deaths, 
+        SUM(CAST(new_deaths AS INT)) / SUM(new_cases) * 100 AS DeathPercentage 
+FROM [Portfolio Project]..covid_deaths
+WHERE continent IS NOT NULL 
+--ORDER BY 1, 2
+
+
+-- Looking at Total Population vs. Vaccinations 
+
+select covid_deaths.continent, covid_deaths.location, covid_deaths.date, covid_deaths.population, covid_vaccinations.new_vaccinations,
+SUM(cast(covid_vaccinations.new_vaccinations as bigint)) OVER (Partition by  covid_deaths.location Order by covid_deaths.location, covid_deaths.date) as rolling_vacc_count 
+--(rolling_vacc_count/population)*100 as PopulationVacPrecentage In CTE
+from covid_deaths 
+join covid_vaccinations 
+on covid_deaths .location = covid_vaccinations .location and
+covid_vaccinations.date = covid_deaths .date
+where covid_deaths.continent is not null 
+order by 2,3
+
+
+--Creating Table View
+
+Create View PopulationVaccinationCount as 
+select covid_deaths.continent, covid_deaths.location, covid_deaths.date, covid_deaths.population, covid_vaccinations.new_vaccinations,
+SUM(cast(covid_vaccinations.new_vaccinations as bigint)) OVER (Partition by  covid_deaths.location Order by covid_deaths.location, covid_deaths.date) as rolling_vacc_count 
+--(rolling_vacc_count/population)*100 as PopulationVacPrecentage In CTE
+from covid_deaths 
+join covid_vaccinations 
+on covid_deaths .location = covid_vaccinations .location and
+covid_vaccinations.date = covid_deaths .date
+where covid_deaths.continent is not null 
+--order by 2,3
+
+--Using CTE for Rolling Vaccination Count / Population Precentage
+
+
+WITH PopVsVacc (Continent, Location, date, Population, new_vaccinations, rolling_vacc_count)
+AS
+(
+    SELECT cd.continent,
+           cv.location,
+		   cd.date,
+           CAST(cd.population AS FLOAT),
+           cv.new_vaccinations,
+           SUM(CAST(cv.new_vaccinations AS bigint)) OVER (PARTITION BY cd.location ORDER BY cd.location, cd.date) AS rolling_vacc_count
+    FROM covid_deaths cd
+    JOIN covid_vaccinations cv ON cd.location = cv.location AND cv.date = cd.date
+    WHERE cd.continent IS NOT NULL
+)
+SELECT *,
+       FORMAT(((rolling_vacc_count / Population) * 100), 'P') AS RollingPercentVaccinated
+FROM PopVsVacc;
+
+
+--Creating Table View
+
+Create View RollingVaccinationPopulationPrecentage as 
+WITH PopVsVacc (Continent, Location, date, Population, new_vaccinations, rolling_vacc_count)
+AS
+(
+    SELECT cd.continent,
+           cv.location,
+		   cd.date,
+           CAST(cd.population AS FLOAT),
+           cv.new_vaccinations,
+           SUM(CAST(cv.new_vaccinations AS bigint)) OVER (PARTITION BY cd.location ORDER BY cd.location, cd.date) AS rolling_vacc_count
+    FROM covid_deaths cd
+    JOIN covid_vaccinations cv ON cd.location = cv.location AND cv.date = cd.date
+    WHERE cd.continent IS NOT NULL
+)
+SELECT *,
+       FORMAT(((rolling_vacc_count / Population) * 100), 'P') AS RollingPercentVaccinated
+FROM PopVsVacc;
+
